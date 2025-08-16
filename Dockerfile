@@ -23,9 +23,14 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --d
 WORKDIR /app
 
 # Clone Firecrawl repository
-RUN git clone https://github.com/mendableai/firecrawl.git . \
-    && cd apps/api && npm install --timeout=300000 \
-    && npx playwright install --with-deps chromium
+RUN git clone https://github.com/mendableai/firecrawl.git .
+
+# Install Node.js dependencies
+WORKDIR /app/apps/api
+RUN npm install --timeout=300000
+
+# Install Playwright with browsers (separate step for better caching)
+RUN npx playwright install-deps && npx playwright install chromium
 
 # Copy production environment
 COPY .env.production /app/apps/api/.env
@@ -55,8 +60,6 @@ ENV NODE_ENV=production \
     MAX_CONCURRENT_REQUESTS=25 \
     TIMEOUT_MS=30000 \
     TEST_API_KEY=7877e105e5f7b9ec3edf4a8eec5059ab9914efef1b30fe232f59ff31cb8e6fcf
-
-WORKDIR /app/apps/api
 
 EXPOSE 3002
 
