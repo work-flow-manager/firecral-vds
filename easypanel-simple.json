@@ -1,0 +1,33 @@
+{
+  "name": "firecrawl-complete",
+  "description": "Firecrawl All-in-One (Redis + Playwright + API + Workers)",
+  "services": [
+    {
+      "name": "firecrawl-aio",
+      "image": "ghcr.io/work-flow-manager/firecral-vds:all-in-one",
+      "domains": ["firecrawl.wmappliances.cloud"],
+      "ports": ["3002:3002"],
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3002",
+        "HOST": "0.0.0.0",
+        "TEST_API_KEY": "7877e105e5f7b9ec3edf4a8eec5059ab9914efef1b30fe232f59ff31cb8e6fcf",
+        "GEMINI_API_KEY": "AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw",
+        "OLLAMA_BASE_URL": "http://host.docker.internal:11434"
+      },
+      "volumes": [
+        {
+          "name": "firecrawl_data",
+          "mountPath": "/app/data"
+        }
+      ],
+      "restart": "unless-stopped",
+      "healthCheck": {
+        "test": ["CMD", "curl", "-f", "http://localhost:3002/health"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      }
+    }
+  ]
+}

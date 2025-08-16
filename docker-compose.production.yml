@@ -1,0 +1,140 @@
+name: firecrawl-production
+
+services:
+  # Redis service
+  redis:
+    image: redis:7-alpine
+    container_name: firecrawl-redis
+    command: redis-server --bind 0.0.0.0 --maxmemory 2gb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - firecrawl-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Playwright service
+  playwright-service:
+    image: ghcr.io/mendableai/playwright-service:latest
+    container_name: firecrawl-playwright
+    environment:
+      PORT: 3000
+      PROXY_SERVER: ${PROXY_SERVER:-http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440}
+      PROXY_USERNAME: ${PROXY_USERNAME:-xcuuwcfa}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:-yccpzo0b9nth}
+      BLOCK_MEDIA: ${BLOCK_MEDIA:-true}
+    networks:
+      - firecrawl-network
+    restart: unless-stopped
+
+  # Firecrawl API
+  api:
+    image: ghcr.io/work-flow-manager/firecral-vds:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.official
+    container_name: firecrawl-api
+    environment:
+      # Core settings
+      HOST: "0.0.0.0"
+      PORT: 3002
+      NODE_ENV: production
+      USE_DB_AUTHENTICATION: "false"
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_URL: redis://redis:6379
+      
+      # Playwright
+      PLAYWRIGHT_MICROSERVICE_URL: http://playwright-service:3000/scrape
+      
+      # AI Configuration - Gemini
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw}
+      OPENAI_API_KEY: ${GEMINI_API_KEY:-AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw}
+      OPENAI_BASE_URL: https://generativelanguage.googleapis.com/v1beta
+      MODEL_NAME: gemini-2.5-flash-latest
+      
+      # Ollama for embeddings
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      MODEL_EMBEDDING_NAME: nomic-embed-text
+      
+      # Proxy settings
+      PROXY_SERVER: ${PROXY_SERVER:-http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440}
+      PROXY_USERNAME: ${PROXY_USERNAME:-xcuuwcfa}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:-yccpzo0b9nth}
+      
+      # API Keys
+      TEST_API_KEY: ${TEST_API_KEY:-7877e105e5f7b9ec3edf4a8eec5059ab9914efef1b30fe232f59ff31cb8e6fcf}
+      BULL_AUTH_KEY: ${BULL_AUTH_KEY:-firecrawl-bull-2024-secure}
+      
+      # Performance
+      MAX_CPU: "0.8"
+      MAX_RAM: "0.8"
+      
+    depends_on:
+      - redis
+      - playwright-service
+    ports:
+      - "${PORT:-3002}:3002"
+    networks:
+      - firecrawl-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    volumes:
+      - firecrawl_data:/app/data
+    command: ["pnpm", "run", "start:production"]
+
+  # Firecrawl Worker
+  worker:
+    image: ghcr.io/work-flow-manager/firecral-vds:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.official
+    container_name: firecrawl-worker
+    environment:
+      # Same as API but for worker
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_URL: redis://redis:6379
+      PLAYWRIGHT_MICROSERVICE_URL: http://playwright-service:3000/scrape
+      
+      # AI Configuration
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw}
+      MODEL_NAME: gemini-2.5-flash-latest
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      MODEL_EMBEDDING_NAME: nomic-embed-text
+      
+      # Proxy
+      PROXY_SERVER: ${PROXY_SERVER:-http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440}
+      PROXY_USERNAME: ${PROXY_USERNAME:-xcuuwcfa}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:-yccpzo0b9nth}
+      
+      # Performance
+      MAX_CPU: "0.8"
+      MAX_RAM: "0.8"
+      
+    depends_on:
+      - redis
+      - playwright-service
+      - api
+    networks:
+      - firecrawl-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    volumes:
+      - firecrawl_data:/app/data
+    command: ["pnpm", "run", "workers"]
+
+volumes:
+  redis_data:
+  firecrawl_data:
+
+networks:
+  firecrawl-network:
+    driver: bridge
