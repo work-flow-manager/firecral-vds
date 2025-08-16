@@ -4,7 +4,7 @@
   "services": [
     {
       "name": "firecrawl",
-      "image": "ghcr.io/SEU-USUARIO/firecrawl-docker:latest",
+      "image": "ghcr.io/work-flow-manager/firecral-vds:latest",
       "domains": ["firecrawl.wmappliances.cloud"],
       "ports": ["3002:3002"],
       "environment": {
