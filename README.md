@@ -15,11 +15,11 @@ Firecrawl configurado para produção com Gemini 2.5 Flash + Ollama embeddings.
 
 ### Opção 1: Usar Docker Hub/GitHub Registry
 
-1. A imagem será automaticamente publicada em: `ghcr.io/SEU-USUARIO/firecrawl-docker:latest`
+1. A imagem será automaticamente publicada em: `ghcr.io/work-flow-manager/firecral-vds:latest`
 
 2. No Easypanel, crie um novo app com:
 ```yaml
-image: ghcr.io/SEU-USUARIO/firecrawl-docker:latest
+image: ghcr.io/work-flow-manager/firecral-vds:latest
 domains:
   - firecrawl.wmappliances.cloud
 ports:
@@ -30,7 +30,7 @@ ports:
 
 ```bash
 # Clone o repositório
-git clone https://github.com/SEU-USUARIO/firecrawl-docker.git
+git clone https://github.com/work-flow-manager/firecral-vds.git
 cd firecrawl-docker
 
 # Build local
