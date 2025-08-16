@@ -24,7 +24,7 @@ WORKDIR /app
 
 # Clone Firecrawl repository
 RUN git clone https://github.com/mendableai/firecrawl.git . \
-    && cd apps/api && npm install \
+    && cd apps/api && npm install --timeout=300000 \
     && npx playwright install --with-deps chromium
 
 # Copy production environment
