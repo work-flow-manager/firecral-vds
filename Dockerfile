@@ -22,12 +22,13 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --d
 
 WORKDIR /app
 
-# Clone Firecrawl repository
-RUN git clone https://github.com/mendableai/firecrawl.git .
+# Clone Firecrawl repository (shallow clone for faster build)
+RUN git clone --depth 1 https://github.com/mendableai/firecrawl.git .
 
-# Install Node.js dependencies
+# Install pnpm and Node.js dependencies
+RUN npm install -g pnpm
 WORKDIR /app/apps/api
-RUN npm install --timeout=300000
+RUN pnpm install --frozen-lockfile
 
 # Install Playwright with browsers (separate step for better caching)
 RUN npx playwright install-deps && npx playwright install chromium
@@ -67,4 +68,4 @@ EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3002/health || exit 1
 
-CMD ["npm", "run", "start:production"]
+CMD ["pnpm", "run", "start:production"]
