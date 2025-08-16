@@ -1,0 +1,59 @@
+{
+  "name": "firecrawl-production",
+  "description": "Firecrawl with Gemini 2.5 Flash + Ollama Embeddings",
+  "services": [
+    {
+      "name": "firecrawl",
+      "image": "ghcr.io/SEU-USUARIO/firecrawl-docker:latest",
+      "domains": ["firecrawl.wmappliances.cloud"],
+      "ports": ["3002:3002"],
+      "environment": {
+        "PORT": "3002",
+        "HOST": "0.0.0.0",
+        "NODE_ENV": "production",
+        "USE_DB_AUTHENTICATION": "false",
+        "TEST_API_KEY": "7877e105e5f7b9ec3edf4a8eec5059ab9914efef1b30fe232f59ff31cb8e6fcf",
+        "GEMINI_API_KEY": "AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw",
+        "GEMINI_MODEL": "gemini-2.5-flash-latest",
+        "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+        "MODEL_EMBEDDING_NAME": "nomic-embed-text",
+        "AI_STRATEGY": "hybrid",
+        "AI_PRIMARY": "gemini",
+        "AI_EMBEDDINGS": "ollama",
+        "REDIS_URL": "redis://redis:6379",
+        "PROXY_SERVER": "http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440",
+        "WEBSHARE_API_KEY": "7tk8w3pjogiwpwpf84y0m8wc6zj6yrn8ycvhrrz8",
+        "PROXY_ROTATION_ENABLED": "true",
+        "RATE_LIMIT_ENABLED": "true",
+        "RATE_LIMIT_MAX_REQUESTS": "411",
+        "RATE_LIMIT_WINDOW_MS": "3600000",
+        "MAX_CONCURRENT_REQUESTS": "25"
+      },
+      "volumes": [
+        {
+          "name": "firecrawl_data",
+          "mountPath": "/app/data"
+        }
+      ],
+      "restart": "unless-stopped",
+      "healthCheck": {
+        "test": ["CMD", "curl", "-f", "http://localhost:3002/health"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      }
+    },
+    {
+      "name": "redis",
+      "image": "redis:7-alpine",
+      "command": "redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --appendonly yes",
+      "volumes": [
+        {
+          "name": "redis_data",
+          "mountPath": "/data"
+        }
+      ],
+      "restart": "unless-stopped"
+    }
+  ]
+}

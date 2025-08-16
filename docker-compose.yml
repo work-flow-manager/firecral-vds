@@ -1,0 +1,188 @@
+version: '3.8'
+
+services:
+  # Redis para cache e queue
+  redis:
+    image: redis:7-alpine
+    container_name: firecrawl-redis
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - firecrawl-network
+
+  # Playwright Service para scraping
+  playwright-service:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    container_name: firecrawl-playwright
+    environment:
+      PORT: 3000
+      PROXY_SERVER: http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440
+      PROXY_USERNAME: xcuuwcfa
+      PROXY_PASSWORD: yccpzo0b9nth
+    command: |
+      sh -c "
+      npm init -y &&
+      npm install express playwright &&
+      cat > server.js << 'EOF'
+      const express = require('express');
+      const { chromium } = require('playwright');
+      const app = express();
+      app.use(express.json());
+
+      app.post('/scrape', async (req, res) => {
+        const { url } = req.body;
+        const browser = await chromium.launch({
+          proxy: {
+            server: process.env.PROXY_SERVER,
+            username: process.env.PROXY_USERNAME,
+            password: process.env.PROXY_PASSWORD
+          }
+        });
+        try {
+          const page = await browser.newPage();
+          await page.goto(url, { waitUntil: 'networkidle' });
+          const content = await page.content();
+          res.json({ content });
+        } catch (error) {
+          res.status(500).json({ error: error.message });
+        } finally {
+          await browser.close();
+        }
+      });
+
+      app.listen(3000, () => console.log('Playwright service running on port 3000'));
+      EOF
+      node server.js
+      "
+    restart: unless-stopped
+    networks:
+      - firecrawl-network
+
+  # Firecrawl API Principal
+  firecrawl-api:
+    build: .
+    image: firecrawl-production:latest
+    container_name: firecrawl-api
+    ports:
+      - "3002:3002"
+    environment:
+      # Core
+      PORT: 3002
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      USE_DB_AUTHENTICATION: "false"
+      TEST_API_KEY: "7877e105e5f7b9ec3edf4a8eec5059ab9914efef1b30fe232f59ff31cb8e6fcf"
+      
+      # Gemini 2.5 Flash
+      GEMINI_API_KEY: "AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw"
+      GEMINI_MODEL: "gemini-2.5-flash-latest"
+      MODEL_NAME: "gemini-2.5-flash-latest"
+      
+      # Ollama para Embeddings (conecta ao host)
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      MODEL_EMBEDDING_NAME: "nomic-embed-text"
+      
+      # Estratégia AI
+      AI_STRATEGY: "hybrid"
+      AI_PRIMARY: "gemini"
+      AI_EMBEDDINGS: "ollama"
+      
+      # Redis
+      REDIS_URL: "redis://redis:6379"
+      REDIS_RATE_LIMIT_URL: "redis://redis:6379"
+      
+      # Playwright
+      PLAYWRIGHT_MICROSERVICE_URL: "http://playwright-service:3000/scrape"
+      
+      # Proxy Webshare
+      PROXY_SERVER: "http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440"
+      PROXY_USERNAME: "xcuuwcfa"
+      PROXY_PASSWORD: "yccpzo0b9nth"
+      WEBSHARE_API_KEY: "7tk8w3pjogiwpwpf84y0m8wc6zj6yrn8ycvhrrz8"
+      PROXY_ROTATION_ENABLED: "true"
+      PROXY_ROTATION_INTERVAL: "100"
+      
+      # Rate Limiting (300k/mês)
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_MAX_REQUESTS: "411"
+      RATE_LIMIT_WINDOW_MS: "3600000"
+      
+      # Performance
+      MAX_CONCURRENT_REQUESTS: "25"
+      TIMEOUT_MS: "30000"
+      RETRY_ATTEMPTS: "3"
+      NODE_OPTIONS: "--max-old-space-size=8192"
+      
+      # Queue
+      BULL_AUTH_KEY: "firecrawl-bull-2024-secure"
+      QUEUE_CONCURRENCY: "50"
+      
+    volumes:
+      - firecrawl_data:/app/data
+    depends_on:
+      - redis
+      - playwright-service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - firecrawl-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firecrawl.rule=Host(`firecrawl.wmappliances.cloud`)"
+      - "traefik.http.routers.firecrawl.entrypoints=websecure"
+      - "traefik.http.routers.firecrawl.tls.certresolver=letsencrypt"
+      - "traefik.http.services.firecrawl.loadbalancer.server.port=3002"
+
+  # Firecrawl Worker
+  firecrawl-worker:
+    build: .
+    image: firecrawl-production:latest
+    container_name: firecrawl-worker
+    command: ["npm", "run", "worker"]
+    environment:
+      # Mesmas variáveis do API
+      REDIS_URL: "redis://redis:6379"
+      REDIS_RATE_LIMIT_URL: "redis://redis:6379"
+      PLAYWRIGHT_MICROSERVICE_URL: "http://playwright-service:3000/scrape"
+      
+      # Gemini para processamento
+      GEMINI_API_KEY: "AIzaSyAJWyUi0s9DHtRorkuDVnpoxDXqDGTqNdw"
+      MODEL_NAME: "gemini-2.5-flash-latest"
+      
+      # Ollama para embeddings
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      MODEL_EMBEDDING_NAME: "nomic-embed-text"
+      
+      # Proxy
+      PROXY_SERVER: "http://xcuuwcfa:yccpzo0b9nth@45.61.100.172:6440"
+      
+      # Performance
+      MAX_CONCURRENT_REQUESTS: "15"
+      WORKER_THREADS: "4"
+      
+    volumes:
+      - firecrawl_data:/app/data
+    depends_on:
+      - redis
+      - playwright-service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - firecrawl-network
+
+volumes:
+  redis_data:
+  firecrawl_data:
+
+networks:
+  firecrawl-network:
+    driver: bridge
